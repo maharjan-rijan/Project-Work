@@ -4,10 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Country;
 use App\Models\CustomerAddress;
+use App\Models\DiscountCoupon;
 use App\Models\Order;
+use Carbon\Carbon;
 use App\Models\OrderItem;
 use Illuminate\Http\Request;
 use App\Models\Product;
+use App\Models\ShippingCharge;
 use Gloudemans\Shoppingcart\Facades\Cart;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -105,6 +108,7 @@ public function deleteItem(Request $request){
     ]);
 }
 public function checkOut(){
+    $discount = 0;
     //If cart is empty redirect to cart page
     if (Cart::count() == 0) {
         return redirect()->route('front.cart');
@@ -118,10 +122,39 @@ public function checkOut(){
     }
     $customerAddress = CustomerAddress::where('user_id',Auth::user()->id)->first();
     session()->forget('url.intended');
+
     $countries = Country::orderBy('name','ASC')->get();
+    $subTotal = Cart::subtotal(2,'.','');
+    if(session()->has('code')){
+        $code = session()->get('code');
+        if($code->type == 'percent'){
+            $discount = ($code->discount_amount/100)*$subTotal;
+        } else {
+            $discount = $code->discount_amount;
+        }
+    }
+    if ($customerAddress != '') {
+        $userCountry = $customerAddress->country_id;
+        $shippingInfo = ShippingCharge::where('county_id',$userCountry)->first();
+
+        $totalQty = 0;
+        $totalShippingCharge = 0;
+        $grandTotal = 0;
+        foreach(Cart::content() as $item){
+            $totalQty += $item->qty;
+        }
+        $totalShippingCharge = $totalQty*$shippingInfo->amount;
+        $grandTotal = ($subTotal-$discount)+$totalShippingCharge;
+    } else{
+        $grandTotal = ($subTotal-$discount);
+        $totalShippingCharge = 0;
+    }
+
     return view('front.checkout',[
         'countries' => $countries,
         'customerAddress' => $customerAddress,
+        'discount' => $discount,
+        'grandTotal' => $grandTotal,
     ]);
 }
 public function processCheckout(Request $request){
@@ -212,5 +245,98 @@ public function thankyou($id){
     return view('front.thanks',[
         'id' => $id,
     ]);
+}
+public function getOrderSummery(Request $request){
+    $subTotal = Cart::subtotal(2,'.','');
+    $discount = 0;
+    $discountSting = '';
+    //Apply Discount Here
+    if(session()->has('code')){
+        $code = session()->get('code');
+        if($code->type == 'percent'){
+            $discount = ($code->discount_amount/100)*$subTotal;
+        } else {
+            $discount = $code->discount_amount;
+        }
+    $discountSting = `<div class=" apply-coupan mt-4" id="discount-response">
+    <strong>'.session()->get('code')->code.'</strong>
+    <button class="btn btn-sm btn-danger" id="remove-discount"><i class="fa fa-times"></i></button>
+    </div>`;
+    }
+    if ($request->country_id > 0) {
+        $shippingInfo = ShippingCharge::where('country_id',$request->country_id)->first();
+        $totalQty = 0;
+        foreach (Cart::content() as $item) {
+            $totalQty += $item->qty;
+        }
+        if ($shippingInfo != null) {
+           $shippingCharge = $totalQty*$shippingInfo->amount;
+           $grandTotal = ($subTotal-$discount)+$shippingCharge;
+
+           return response()->json([
+            'status' => true,
+            'grandTotal' => number_format($grandTotal,2),
+            'discount' => $discount,
+            'discountSting' => $discountSting,
+            'shippingCharge' => number_format($shippingCharge,2),
+        ]);
+        } else {
+            $shippingInfo = ShippingCharge::where('country_id','rest_of_world')->first();
+            $shippingCharge = $totalQty*$shippingInfo->amount;
+            $grandTotal = ($subTotal-$discount)+$shippingCharge;
+
+           return response()->json([
+            'status' => true,
+            'grandTotal' => number_format(($subTotal-$discount),2),
+            'discount' => $discount,
+            'discountSting' => $discountSting,
+            'shippingCharge' => number_format($shippingCharge,2),
+        ]);
+        }
+    } else {
+        return response()->json([
+            'status' => true,
+            'grandTotal' => number_format($subTotal,2),
+            'discount' => $discount,
+            'discountSting' => $discountSting,
+            'shippingCharge' => number_format(0,2),
+        ]);
+    }
+
+}
+public function applyDiscount(Request $request){
+    $code = DiscountCoupon::where('code',$request->code)->first();
+    if ($code == null) {
+        return response()->json([
+            'status' => false,
+            'message' => 'Invalid discount coupon',
+        ]);
+    }
+    //Check coupon start date is valid or not
+    $now = Carbon::now();
+    if ($code->starts_at != " ") {
+        $startDate = Carbon::createFromFormat('Y-m-d H:i:s', $code->starts_at);
+    if($now->lt($startDate)){
+        return response()->json([
+            'status' => false,
+            'message' => 'Invalid discount coupon',
+        ]);
+    }
+    }
+    if ($code->expires_at != " ") {
+        $endDate = Carbon::createFromFormat('Y-m-d H:i:s', $code->expires_at);
+    if($now->gt($endDate)){
+        return response()->json([
+            'status' => false,
+            'message' => 'Invalid discount coupon',
+        ]);
+    }
+    }
+    session()->put('code',$code);
+    return $this->getOrderSummery($request);
+}
+public function removeCoupon(Request $request){
+    session()->forget('code');
+    return $this->getOrderSummery($request);
 }
 }

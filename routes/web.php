@@ -43,6 +43,10 @@ Route::get('/checkout',[CartController::class,'checkOut'])->name('front.checkout
 Route::post('/process-checkout',[CartController::class,'processCheckout'])->name('front.processCheckout');
 Route::get('/thanks/{orderId}',[CartController::class,'thankyou'])->name('front.thanks');
 
+Route::post('/apply-discount',[CartController::class,'applyDiscount'])->name('front.applyDiscount');
+Route::post('/delete-discount',[CartController::class,'removeCoupon'])->name('front.removeDiscount');
+
+
 Route::get('/shop/{categorySlug?}/{subCategorySlug?}',[ShopController::class,'index'])->name('front.shop');
 Route::get('/product/{slug}',[ShopController::class,'product'])->name('front.product');
 Route::get('/page/{slug}',[FrontController::class,'page'])->name('front.page');
@@ -137,9 +141,9 @@ Route::group(['prefix' => 'admin'],function(){
          Route::get('/discount-coupon',[DiscountCodeController::class,'index'])->name('coupons.index');
          Route::get('/discount-coupon/create',[DiscountCodeController::class,'create'])->name('coupons.create');
          Route::post('/discount-coupon',[DiscountCodeController::class,'store'])->name('coupons.store');
-        //  Route::get('/shipping/{id}/edit',[ShippingController::class,'edit'])->name('shipping.edit');
-        //  Route::put('/shipping/{id}',[ShippingController::class,'update'])->name('shipping.update');
-        //  Route::delete('/shipping/{id}',[ShippingController::class,'destroy'])->name('shipping.delete');
+         Route::get('/discount-coupon/{coupon}/edit',[DiscountCodeController::class,'edit'])->name('coupons.edit');
+         Route::put('/discount-coupon/{coupon}',[DiscountCodeController::class,'update'])->name('coupons.update');
+         Route::delete('/discount-coupon/{coupon}',[DiscountCodeController::class,'destroy'])->name('coupons.delete');
 
         //Pages
         Route::get('/pages',[PageController::class,'index'])->name('pages.index');

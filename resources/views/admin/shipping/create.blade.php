@@ -114,8 +114,8 @@
             $("button[type=submit]").prop('disabled',false);
             if(response["status"] == true) {
                 // window.location.href="";
-                // $("#country").removeClass('is-invalid').siblings('p').removeClass('invalid-feedback').html("");
-                // $("#amount").removeClass('is-invalid').siblings('p').removeClass('invalid-feedback').html("");
+                $("#country").removeClass('is-invalid').siblings('p').removeClass('invalid-feedback').html("");
+                $("#amount").removeClass('is-invalid').siblings('p').removeClass('invalid-feedback').html("");
             } else {
                 var errors = response['errors'];
             if(errors['country']){
